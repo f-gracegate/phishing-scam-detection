@@ -16,6 +16,7 @@ services:
       - drill-backups:/backups
       - drill-secrets:/drill
     profiles: [drill]
+    networks: [internal]
 
   postgres-restore:
     # A clean server with nothing in it, standing in for disaster-recovery infrastructure.
@@ -31,6 +32,7 @@ services:
       timeout: 3s
       retries: 30
     profiles: [drill]
+    networks: [internal]
 
   restore:
     build: ./deploy/backup
@@ -47,6 +49,7 @@ services:
       - drill-secrets:/drill:ro
       - drill-objects:/restore/objects
     profiles: [drill]
+    networks: [internal]
 
 volumes:
   drill-backups:

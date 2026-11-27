@@ -33,6 +33,7 @@ TENANT_TABLES = (
     "departments",
     "invitations",
     "subscriptions",
+    "payments",
     "cases",
     "case_events",
     "api_usage",

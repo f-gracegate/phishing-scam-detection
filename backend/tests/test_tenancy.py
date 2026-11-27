@@ -196,3 +196,23 @@ def test_organisation_mfa_requirement(owner):
 
 def test_platform_console_requires_platform_admin(owner):
     assert owner.get("/api/v1/platform/organisations").status_code == 403
+
+
+def test_row_level_security_is_forced_on_every_private_table(owner_engine):
+    from app.models import Base
+
+    private = {t.name for t in Base.metadata.sorted_tables if "organisation_id" in t.c} - {
+        "audit_logs",  # policy keyed on actor as well; checked below
+        "indicator_observations",
+    }
+    private |= {"audit_logs", "notifications", "push_devices", "memberships", "organisations"}
+    private -= {"brand_profiles"}  # readable platform catalogue, policy covers org rows
+    with owner_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT relname FROM pg_class WHERE relkind = 'r' AND relrowsecurity "
+                "AND relforcerowsecurity AND relnamespace = 'public'::regnamespace"
+            )
+        ).scalars()
+        forced = set(rows)
+    assert private - forced == set()
