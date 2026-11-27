@@ -13,7 +13,7 @@ Powered by **GraceGate Technologies**. Brand name: undecided (`BRAND_PRODUCT_NAM
 | Isolated website fetcher | Same image, separate container, no database access | `backend/app/fetcher/` |
 | Web app (consumer, business, analyst console) | Next.js 16, React 19, Tailwind 4 | `apps/web/` |
 | Browser extension | TypeScript, Manifest V3 | `apps/browser-extension/` |
-| Mobile apps | Flutter | *not started* |
+| Mobile apps (Android, iOS) | Flutter | `apps/mobile/` |
 
 ## Run it locally
 
@@ -35,6 +35,12 @@ docker compose run --rm -T backend pytest -q
 
 ```bash
 cd apps/browser-extension && npm ci && npm test
+```
+
+Mobile app (iOS Simulator reaches the local API on localhost; Android emulator on 10.0.2.2):
+
+```bash
+cd apps/mobile && flutter run
 ```
 
 Load the extension: `npm run build`, then `chrome://extensions` → Developer mode → Load

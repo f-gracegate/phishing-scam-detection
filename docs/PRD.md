@@ -34,14 +34,18 @@ security, legal, roadmap and commercial strategy) was supplied by the product ow
 | 5. Threat intelligence, community reporting, analyst console, expiry, false positives | ✅ Built |
 | 6. Business dashboards, cases, bulk scans, API keys, usage, webhooks, subscriptions | ✅ Built |
 | 7. Browser extension | ✅ Built (Chrome/Edge MV3) |
-| 7. Flutter Android/iOS apps, share-to-scan, push, iOS SMS filter | ⏳ Not started |
+| 7. Flutter Android/iOS apps: check, QR camera, history, reports, push, app lock, Android share-to-scan | ✅ Built |
+| 7. iOS share extension and iOS SMS filter extension | ⏳ Not started |
 | 8. Security testing, privacy assessment, accuracy evaluation, pilot, launch | ⏳ Not started |
 
 ## Left to do
 
 Engineering:
-- Flutter mobile apps (Android + iOS): scan, share-to-scan, camera QR, push, and the iOS
-  `ILMessageFilterExtension` (unknown senders only — no iMessage/WhatsApp monitoring).
+- iOS native extensions: a Share Extension (share a link or message into the app; Android
+  already supports this) and the `ILMessageFilterExtension` (unknown SMS senders only — no
+  iMessage/WhatsApp monitoring). Today iOS users paste with the clipboard button.
+- Android SMS integration (needs Play Store policy review; not built).
+- Firebase project and APNs key for push in store builds; store listings and signing.
 - Disposable headless-browser sandbox for script-heavy pages (today: static HTML analysis).
 - Server-side QR image decoding (today: decoded on the device; only the text is sent).
 - Personal Plus checkout (Paystack MoMo) — business checkout works; personal plan is stored but

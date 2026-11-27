@@ -158,7 +158,9 @@ def match_host(host: str, brands: tuple[Brand, ...] | list[Brand]) -> BrandMatch
             official_label = official.split(".")[0]
             if len(official_label) < 5:
                 continue
-            for label in labels:
+            # Whole labels and their hyphenated parts ("gcbbamk-secure" -> "gcbbamk").
+            parts = labels + [p for label in labels for p in label.split("-") if p != label]
+            for label in parts:
                 if label == official_label:
                     return BrandMatch(brand, "keyword", official_label)
                 if label in all_keywords:

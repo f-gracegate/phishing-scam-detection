@@ -1,0 +1,275 @@
+import 'package:flutter/material.dart';
+
+import '../api/api_client.dart';
+import 'config.dart';
+
+/// Brand and design tokens shared with the web app.
+class Brand {
+  Brand._();
+
+  static const primary = Color(0xFF2563EB);
+  static const navy = Color(0xFF111827);
+  static const gracegate = Color(0xFF9333EA);
+  static const safe = Color(0xFF15803D);
+  static const caution = Color(0xFFD97706);
+  static const danger = Color(0xFFDC2626);
+  static const suspicious = Color(0xFFEA580C);
+  static const unknown = Color(0xFF64748B);
+
+  static Color verdict(String? v) => switch (v) {
+    'critical' || 'high' => danger,
+    'suspicious' => suspicious,
+    'caution' => caution,
+    'low' => safe,
+    _ => unknown,
+  };
+
+  static const severity = {
+    'critical': Color(0xFFDC2626),
+    'high': Color(0xFFDC2626),
+    'medium': Color(0xFFEA580C),
+    'low': Color(0xFFD97706),
+    'info': Color(0xFF64748B),
+  };
+}
+
+const verdictLabels = {
+  'critical': 'Critical risk',
+  'high': 'High risk',
+  'suspicious': 'Suspicious',
+  'caution': 'Caution',
+  'low': 'Low risk',
+  'unknown': 'Unknown',
+};
+
+const confidenceLabels = {
+  'high': 'High confidence',
+  'medium': 'Medium confidence',
+  'low': 'Low confidence',
+};
+
+const scamCategories = {
+  'momo': 'Mobile money scam',
+  'bank': 'Bank impersonation',
+  'government': 'Government impersonation',
+  'delivery': 'Delivery scam',
+  'recruitment': 'Job / recruitment scam',
+  'investment': 'Investment scam',
+  'ecommerce': 'Online shopping scam',
+  'social_engineering': 'OTP / PIN request',
+  'impersonation': 'Impersonation',
+  'crypto': 'Cryptocurrency scam',
+  'university': 'Admission / scholarship scam',
+  'romance': 'Romance or emergency scam',
+  'prize': 'Prize or lottery scam',
+  'other': 'Something else',
+};
+
+const channels = {
+  'sms': 'SMS / text message',
+  'whatsapp': 'WhatsApp',
+  'email': 'Email',
+  'website': 'Website',
+  'social': 'Social media',
+  'phone_call': 'Phone call',
+  'other': 'Other',
+};
+
+const reportStatusLabels = {
+  'unverified': 'Received — not yet verified',
+  'under_review': 'Being reviewed',
+  'verified': 'Verified by an analyst',
+  'rejected': 'Reviewed — not confirmed',
+  'duplicate': 'Already reported',
+};
+
+ThemeData buildTheme(Brightness brightness) {
+  // Keep the exact brand blue for buttons and accents, as on the web dashboard.
+  final scheme = ColorScheme.fromSeed(
+    seedColor: Brand.primary,
+    brightness: brightness,
+  ).copyWith(primary: brightness == Brightness.light ? Brand.primary : null);
+  // House fonts: Poppins for text, Montserrat for headings and big numbers.
+  final text = ThemeData(brightness: brightness, fontFamily: 'Poppins').textTheme;
+  TextStyle? heading(TextStyle? s) => s?.copyWith(fontFamily: 'Montserrat');
+  return ThemeData(
+    colorScheme: scheme,
+    useMaterial3: true,
+    fontFamily: 'Poppins',
+    textTheme: text.copyWith(
+      displayLarge: heading(text.displayLarge),
+      displayMedium: heading(text.displayMedium),
+      displaySmall: heading(text.displaySmall),
+      headlineLarge: heading(text.headlineLarge),
+      headlineMedium: heading(text.headlineMedium),
+      headlineSmall: heading(text.headlineSmall),
+      titleLarge: heading(text.titleLarge),
+    ),
+    scaffoldBackgroundColor: brightness == Brightness.light ? const Color(0xFFF8FAFC) : null,
+    appBarTheme: const AppBarTheme(centerTitle: false),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
+  );
+}
+
+class EmptyView extends StatelessWidget {
+  const EmptyView({super.key, required this.icon, required this.title, this.message});
+
+  final IconData icon;
+  final String title;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      // Scrollable so pull-to-refresh still works on an empty list.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 48),
+        Icon(icon, size: 40, color: theme.colorScheme.outline),
+        const SizedBox(height: 12),
+        Text(title, textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
+        if (message != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            message!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class ErrorView extends StatelessWidget {
+  const ErrorView({super.key, required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_outlined, size: 40, color: Theme.of(context).colorScheme.outline),
+            const SizedBox(height: 12),
+            Text(errorText(error), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String errorText(Object error) =>
+    error is ApiException ? error.message : 'Something went wrong. Try again.';
+
+void showMessage(BuildContext context, String message, {bool error = false}) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+class PoweredBy extends StatelessWidget {
+  const PoweredBy({super.key});
+
+  @override
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      text: 'Powered by ',
+      children: [
+        TextSpan(
+          text: AppConfig.companyName,
+          style: const TextStyle(color: Brand.gracegate, fontWeight: FontWeight.w600),
+        ),
+      ],
+    ),
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.bodySmall,
+  );
+}
+
+/// "5 min ago", "Yesterday", "3 Dec".
+String timeAgo(DateTime t) {
+  final d = DateTime.now().difference(t);
+  if (d.inMinutes < 1) return 'Just now';
+  if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+  if (d.inHours < 24) return '${d.inHours} h ago';
+  if (d.inDays == 1) return 'Yesterday';
+  if (d.inDays < 7) return '${d.inDays} days ago';
+  return formatDate(t);
+}
+
+const _months = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', //
+];
+
+String formatDate(DateTime t) =>
+    '${t.day} ${_months[t.month - 1]}${t.year == DateTime.now().year ? '' : ' ${t.year}'}';
+
+String formatDateTime(DateTime t) =>
+    '${formatDate(t)}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// Loads data for a screen and rebuilds on refresh. Keeps screens free of boilerplate.
+class Loader<T> extends StatefulWidget {
+  const Loader({super.key, required this.load, required this.builder});
+
+  final Future<T> Function() load;
+  final Widget Function(BuildContext context, T data, Future<void> Function() reload) builder;
+
+  @override
+  State<Loader<T>> createState() => LoaderState<T>();
+}
+
+class LoaderState<T> extends State<Loader<T>> {
+  late Future<T> _future = widget.load();
+
+  Future<void> reload() async {
+    final next = widget.load();
+    setState(() {
+      _future = next;
+    });
+    try {
+      await next;
+    } catch (_) {
+      // Shown by the builder.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<T>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.hasError) return ErrorView(error: snap.error!, onRetry: reload);
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        return RefreshIndicator(
+          onRefresh: reload,
+          child: widget.builder(context, snap.data as T, reload),
+        );
+      },
+    );
+  }
+}

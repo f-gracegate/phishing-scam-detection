@@ -49,6 +49,8 @@ def test_official_domain_is_positive_but_lookalikes_are_flagged():
     look = match_host("gcbbamk.com", BRANDS)
     assert look and look.how == "lookalike" and look.brand.name == "GCB Bank"
     assert match_host("ecobank.com", BRANDS) is None  # the real thing
+    hyphenated = match_host("gcbbamk-secure.xyz", BRANDS)
+    assert hyphenated and hyphenated.brand.name == "GCB Bank"
 
 
 def test_short_brand_words_need_a_whole_token():
