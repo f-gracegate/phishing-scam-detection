@@ -1,0 +1,132 @@
+# Local development stack. Do not use these credentials anywhere else.
+name: phishing-scam-detection
+
+x-backend: &backend
+  build:
+    context: ./backend
+    args:
+      INSTALL_DEV: "true"
+  env_file:
+    - ./backend/.env.example
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: psd_owner
+      POSTGRES_PASSWORD: psd_owner_dev
+      POSTGRES_DB: psd
+      APP_DB_USER: psd_app
+      APP_DB_PASSWORD: psd_app_dev
+    ports:
+      - "127.0.0.1:5632:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/database/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psd_owner -d psd"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6579:6379"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    <<: *backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://psd_app:psd_app_dev@postgres:5432/psd
+      MIGRATION_DATABASE_URL: postgresql+psycopg://psd_owner:psd_owner_dev@postgres:5432/psd
+      TEST_DATABASE_URL: postgresql+psycopg://psd_app:psd_app_dev@postgres:5432/psd_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+psycopg://psd_owner:psd_owner_dev@postgres:5432/psd_test
+      REDIS_URL: redis://redis:6379/0
+      TEST_REDIS_URL: redis://redis:6379/1
+      FETCHER_URL: http://fetcher:8001
+      FORWARDED_ALLOW_IPS: "*"
+    command: >
+      sh -c "alembic upgrade head && python -m app.cli seed --demo &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips=$${FORWARDED_ALLOW_IPS:-127.0.0.1}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    ports:
+      - "127.0.0.1:8200:8000"
+    volumes:
+      - ./backend:/srv
+      - objects:/data/objects
+    networks: [internal, scan]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    # Runs queued scans, intelligence expiry, webhooks and push notifications.
+    # Scale with: docker compose up --scale worker=2
+    <<: *backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://psd_app:psd_app_dev@postgres:5432/psd
+      REDIS_URL: redis://redis:6379/0
+      FETCHER_URL: http://fetcher:8001
+    command: python -m app.workers.scan
+    volumes:
+      - ./backend:/srv
+      - objects:/data/objects
+    networks: [internal, scan]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  fetcher:
+    # Visits untrusted websites. It holds no database or Redis credentials and is reachable
+    # only from the backend and worker on the "scan" network; it reaches the internet through
+    # the "egress" network and refuses private, loopback and metadata addresses itself.
+    <<: *backend
+    env_file: []
+    environment:
+      ENVIRONMENT: development
+      FETCHER_TOKEN: dev-fetcher-token
+    command: uvicorn app.fetcher.service:app --host 0.0.0.0 --port 8001 --reload
+    volumes:
+      - ./backend:/srv
+    networks: [scan, egress]
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "127.0.0.1:3820:3000"
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    networks: [internal]
+    depends_on:
+      - backend
+
+networks:
+  internal:
+  scan:
+    internal: true
+  egress:
+
+volumes:
+  objects:
+  pgdata:

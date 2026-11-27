@@ -1,0 +1,162 @@
+import base64
+import hashlib
+from functools import lru_cache
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_DEFAULT_SECRET = "dev-only-insecure-secret-key-change-me"  # noqa: S105
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Fails closed: anything other than an explicit "development" or "test" gets the strict
+    # production checks, and development-only routes (dev mailbox, sandbox payments) stay off.
+    environment: str = "production"
+
+    database_url: str = "postgresql+psycopg://psd_app:psd_app_dev@localhost:5632/psd"
+    migration_database_url: str = "postgresql+psycopg://psd_owner:psd_owner_dev@localhost:5632/psd"
+    redis_url: str = "redis://localhost:6579/0"
+
+    secret_key: str = _INSECURE_DEFAULT_SECRET
+    data_encryption_key: str = ""
+
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 14
+    mfa_token_ttl_minutes: int = 5
+    password_reset_ttl_minutes: int = 30
+    invitation_ttl_days: int = 7
+
+    cookie_secure: bool = False
+    web_base_url: str = "http://localhost:3820"
+
+    login_max_failures: int = 5
+    login_lockout_minutes: int = 15
+
+    seed_admin_username: str = "Admin"
+    seed_admin_email: str = "admin@example.com"
+    seed_admin_password: str | None = None
+
+    brand_product_name: str = "Phishing and Scam Detection"
+
+    # Encrypted object storage for evidence and reports. Use a mounted volume or network disk;
+    # replace with an S3-compatible backend for multi-server deployments.
+    storage_dir: str = "/data/objects"
+    max_evidence_bytes: int = 10 * 1024 * 1024
+    # Total evidence each organisation may store.
+    evidence_quota_bytes: int = 2 * 1024 * 1024 * 1024
+
+    # Mobile app sessions hold tokens in the phone's secure storage and last longer than web ones.
+    mobile_refresh_token_ttl_days: int = 30
+
+    # Push notifications. "log" keeps them in a development outbox; "fcm" sends through Firebase
+    # Cloud Messaging (Android and, via APNs, iOS) using a service-account JSON key.
+    push_provider: str = "log"
+    fcm_project_id: str = ""
+    fcm_service_account_file: str = ""
+    # Push text appears on lock screens and passes through Google/Apple, so by default it only
+    # names the severity and alert title; details are fetched in the app after sign-in.
+    push_include_details: bool = False
+
+    # Payments. "sandbox" simulates checkout for development and tests; "paystack" takes Mobile
+    # Money (MTN, Telecel, AirtelTigo) and cards in Ghana cedis.
+    payment_provider: str = "sandbox"
+    paystack_secret_key: str = ""
+    paystack_base_url: str = "https://api.paystack.co"
+    # Days of service kept after a paid period ends, while reminders go out.
+    billing_grace_days: int = 7
+    # Annual billing charges this many months for twelve.
+    annual_months_charged: int = 10
+    billing_contact_email: str = "sales@gracegate.example"
+    brand_company_name: str = "GraceGate Technologies"
+
+    # Outgoing email (SMTP with STARTTLS). Required outside development.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "Phishing and Scam Detection <no-reply@example.com>"
+    smtp_starttls: bool = True
+
+    # Logs: "text" for people, "json" for log collectors. Access lines are off by default.
+    log_format: str = "text"
+    log_access: bool = False
+    # Bearer token for GET /api/metrics (Prometheus). Unset = metrics endpoint disabled.
+    metrics_token: str = ""
+
+    # --- Scanning -----------------------------------------------------------------------
+    # The isolated website fetcher (app.fetcher.service). It holds no database credentials.
+    fetcher_url: str = "http://localhost:8001"
+    fetcher_token: str = ""
+    # Run scans inside the request instead of the worker queue. Tests and quick local trials.
+    scan_inline: bool = False
+    # Website analysis limits.
+    fetch_timeout_seconds: float = 10.0
+    fetch_max_redirects: int = 5
+    fetch_max_bytes: int = 1_000_000
+    # Lets the fetcher reach private addresses. Only for isolated test labs, never production.
+    allow_private_fetch_targets: bool = False
+    # Raw submitted content (messages, emails) is kept encrypted for this many days by default,
+    # then erased; extracted indicators and the verdict are kept with the scan.
+    content_retention_days: int = 30
+    max_message_chars: int = 20_000
+    max_email_bytes: int = 2 * 1024 * 1024
+    # Daily scan allowances for personal accounts (free and Personal Plus).
+    free_daily_scans: int = 20
+    plus_daily_scans: int = 300
+    # Business API keys: requests per minute per key.
+    api_key_rate_per_minute: int = 120
+
+    # --- External threat intelligence (all off unless configured) ----------------------------
+    # Google Web Risk is the commercial service; the free Safe Browsing API is non-commercial
+    # and must not be used here.
+    google_web_risk_api_key: str = ""
+    urlhaus_auth_key: str = ""
+    # RDAP lookups for domain registration dates (public registries via rdap.org bootstrap).
+    rdap_enabled: bool = False
+    rdap_base_url: str = "https://rdap.org"
+
+    # Webhook deliveries.
+    webhook_timeout_seconds: float = 5.0
+
+    @property
+    def is_development(self) -> bool:
+        return self.environment in {"development", "test"}
+
+    @property
+    def fernet_key(self) -> bytes:
+        if self.data_encryption_key:
+            return self.data_encryption_key.encode()
+        # Development fallback derived from the signing key. Production requires an explicit key.
+        digest = hashlib.sha256(("fernet:" + self.secret_key).encode()).digest()
+        return base64.urlsafe_b64encode(digest)
+
+    @model_validator(mode="after")
+    def _check_production_secrets(self) -> "Settings":
+        if not self.is_development:
+            if self.secret_key == _INSECURE_DEFAULT_SECRET or len(self.secret_key) < 32:
+                raise ValueError("SECRET_KEY must be a random value of at least 32 characters")
+            if not self.data_encryption_key:
+                raise ValueError("DATA_ENCRYPTION_KEY is required outside development")
+            if not self.cookie_secure:
+                raise ValueError("COOKIE_SECURE must be true outside development")
+            if not self.smtp_host:
+                raise ValueError("SMTP_HOST is required outside development")
+            if self.payment_provider == "sandbox":
+                raise ValueError("PAYMENT_PROVIDER=sandbox is for development only")
+            if not self.fetcher_token or len(self.fetcher_token) < 24:
+                raise ValueError("FETCHER_TOKEN must be a random value of at least 24 characters")
+            if self.scan_inline:
+                raise ValueError("SCAN_INLINE is for development and tests only")
+            if self.payment_provider == "paystack" and not self.paystack_secret_key:
+                raise ValueError("PAYSTACK_SECRET_KEY is required when PAYMENT_PROVIDER=paystack")
+        return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
