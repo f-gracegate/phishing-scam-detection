@@ -112,6 +112,7 @@ class UserOut(ORMModel):
     username: str | None
     full_name: str
     is_platform_admin: bool
+    platform_role: str = ""
     must_change_password: bool
     mfa_enabled: bool
     email_verified_at: datetime | None = None

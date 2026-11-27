@@ -304,3 +304,20 @@ def test_public_warnings_show_only_published_campaigns(system_db):
     warnings = TestClient(app).get("/api/v1/public/warnings").json()
     assert len(warnings) == 1 and warnings[0]["category"] == "momo"
     assert "name" not in warnings[0]  # internal campaign names stay internal
+
+
+def test_reputation_endpoint_for_the_extension(person, system_db):
+    admin = User(email="analyst@example.com", password_hash="x", is_platform_admin=True)
+    system_db.add(admin)
+    system_db.flush()
+    seed_demo_intel(system_db, admin)
+    system_db.commit()
+    token = person.post("/api/v1/me/extension-tokens", {"name": "Firefox"}).json()["token"]
+    ext = TestClient(app)
+    h = {"authorization": f"Bearer {token}"}
+    bad = ext.get("/api/v1/scans/reputation?domain=mtn-momo-reversal.example", headers=h).json()
+    assert bad["status"] == "verified_malicious" and bad["category"] == "momo"
+    ok = ext.get("/api/v1/scans/reputation?domain=example.org", headers=h).json()
+    assert ok["status"] == "no_record" and "doesn't make it safe" in ok["message"]
+    # Nothing is stored: browsing is never recorded as scans.
+    assert person.get("/api/v1/scans").json()["total"] == 0

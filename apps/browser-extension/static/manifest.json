@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Phishing and Scam Detection",
+  "short_name": "Scam Check",
+  "version": "0.1.0",
+  "description": "Check suspicious links before you open them, and get warned about verified scam websites. Powered by GraceGate Technologies.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Check this page"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "activeTab"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "web_accessible_resources": [],
+  "icons": {
+    "128": "icon.png"
+  },
+  "optional_permissions": [
+    "webNavigation"
+  ]
+}

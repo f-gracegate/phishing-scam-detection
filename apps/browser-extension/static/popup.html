@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Check this page</title><link rel="stylesheet" href="styles.css">
+<style>body{width:340px;padding:14px} ul{padding-left:18px;margin:8px 0} #verdict{font-family:Montserrat,Poppins,sans-serif;font-weight:700;font-size:16px}</style></head>
+<body>
+  <h1 style="font-size:16px">Scam check</h1>
+  <div id="setup" hidden class="card" style="margin-top:10px">
+    <p>Connect the extension to your account to start checking links.</p>
+    <button id="open-options-2" class="primary">Connect</button>
+  </div>
+  <div id="main" style="margin-top:10px">
+    <p class="muted">Current site</p>
+    <p id="url" style="margin:2px 0 10px;font-weight:600;word-break:break-all"></p>
+    <button id="check" class="primary">Check this page</button>
+    <p id="error" class="error"></p>
+    <div id="result" hidden class="card" style="margin-top:10px">
+      <div id="verdict"></div>
+      <p id="headline" style="margin:4px 0;font-weight:600"></p>
+      <ul id="reasons"></ul>
+      <p id="next" class="muted"></p>
+      <a id="details" target="_blank" rel="noopener">See the full result</a>
+    </div>
+    <p class="muted" style="margin-top:10px">Only this page's address is sent, and only when you press the button.</p>
+  </div>
+  <p class="footer"><button id="open-options" class="link">Settings</button> · Powered by GraceGate Technologies</p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

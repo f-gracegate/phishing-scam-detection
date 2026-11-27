@@ -515,6 +515,58 @@ def quota(actor: Actor = Depends(get_actor), db: Session = Depends(get_db)) -> Q
     )
 
 
+class ReputationOut(BaseModel):
+    domain: str
+    status: Literal["verified_malicious", "verified_suspicious", "reported", "no_record"]
+    category: str | None = None
+    category_label: str | None = None
+    message: str
+
+
+@router.get("/reputation", response_model=ReputationOut)
+def reputation(
+    domain: str = Query(min_length=3, max_length=253),
+    actor: Actor = Depends(get_actor),
+    db: Session = Depends(get_db),
+) -> ReputationOut:
+    """Quick verdict for a website's domain from verified intelligence only.
+
+    Used by the browser extension to warn before a page is opened. Only the domain is sent and
+    nothing is stored, so browsing history is never collected.
+    """
+    from app.detection.urls import InvalidURL, parse_url
+    from app.intelligence import service as intel
+
+    key = actor.api_key.id if actor.api_key else actor.user.id
+    rate_limit(f"reputation:{key}", limit=600, window_seconds=60)
+    try:
+        parsed = parse_url(f"https://{domain.strip().lower()}/")
+    except InvalidURL as exc:
+        raise APIError(422, "invalid_domain", str(exc)) from exc
+    signals, _ = intel.lookup_url(db, parsed)
+    verified = next((s for s in signals if s.source_kind == "verified_intel"), None)
+    if verified:
+        malicious = verified.weight >= 75
+        return ReputationOut(
+            domain=parsed.host,
+            status="verified_malicious" if malicious else "verified_suspicious",
+            category=verified.category,
+            category_label=CATEGORY_LABELS.get(verified.category or ""),
+            message=verified.description,
+        )
+    if signals:
+        return ReputationOut(
+            domain=parsed.host,
+            status="reported",
+            message="Others have reported this site; it hasn't been verified.",
+        )
+    return ReputationOut(
+        domain=parsed.host,
+        status="no_record",
+        message="Not on our verified threat list. That doesn't make it safe.",
+    )
+
+
 @router.get("/{scan_id}", response_model=ScanDetail)
 def get_scan(
     scan_id: uuid.UUID, actor: Actor = Depends(get_actor), db: Session = Depends(get_db)

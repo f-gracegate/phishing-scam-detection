@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: psd_owner
+          POSTGRES_PASSWORD: psd_owner_dev
+          POSTGRES_DB: psd
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U psd_owner -d psd"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      PGPASSWORD: psd_owner_dev
+      TEST_DATABASE_URL: postgresql+psycopg://psd_app:psd_app_dev@localhost:5432/psd_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+psycopg://psd_owner:psd_owner_dev@localhost:5432/psd_test
+      TEST_REDIS_URL: redis://localhost:6379/1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Create application role and test database
+        run: |
+          psql -h localhost -U psd_owner -d psd -c "CREATE ROLE psd_app LOGIN PASSWORD 'psd_app_dev' NOBYPASSRLS;" \
+            -c "CREATE DATABASE psd_test OWNER psd_owner;"
+          psql -h localhost -U psd_owner -d psd_test \
+            -c "REVOKE ALL ON SCHEMA public FROM PUBLIC;" \
+            -c "GRANT USAGE ON SCHEMA public TO psd_app;" \
+            -c "ALTER DEFAULT PRIVILEGES FOR ROLE psd_owner IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO psd_app;" \
+            -c "ALTER DEFAULT PRIVILEGES FOR ROLE psd_owner IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO psd_app;"
+      - run: pip install --require-hashes -r requirements-dev.lock
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx next build
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/browser-extension
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm test
+
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Python dependencies have no known vulnerabilities
+        run: pip install pip-audit && pip-audit --require-hashes -r backend/requirements.lock
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Web dependencies have no high or critical vulnerabilities
+        working-directory: apps/web
+        run: npm audit --omit=dev --audit-level=high
+      - name: No secrets committed
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Container and configuration scan (Dockerfiles, compose, dependencies)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+
+
+  restore-drill:
+    # Mandatory security scenario 10: back up, restore into a clean server, verify.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/restore-drill.sh

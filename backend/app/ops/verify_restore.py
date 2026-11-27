@@ -54,7 +54,7 @@ def main() -> int:
             check(actual == count, f"{table}: {actual} rows (backup {count})")
         tenant_tables = [
             t.name for t in Base.metadata.sorted_tables if "organisation_id" in t.c
-        ] + ["organisations", "memberships", "push_devices", "feedback"]
+        ] + ["organisations", "memberships", "push_devices", "notifications"]
         flags = dict(
             (r[0], (r[1], r[2]))
             for r in conn.execute(
@@ -68,9 +68,9 @@ def main() -> int:
         check(not missing, f"row-level security forced on all tenant tables {missing or ''}")
 
     with app.connect() as conn:
-        visible = conn.scalar(text("SELECT count(*) FROM assets"))
-        check(visible == 0, f"application role sees {visible} assets without a tenant context")
-        for table, verb in (("audit_logs", "DELETE FROM"), ("incident_events", "DELETE FROM")):
+        visible = conn.scalar(text("SELECT count(*) FROM scans"))
+        check(visible == 0, f"application role sees {visible} scans without a tenant context")
+        for table, verb in (("audit_logs", "DELETE FROM"), ("indicator_history", "DELETE FROM")):
             try:
                 with conn.begin_nested():
                     conn.execute(text(f"{verb} {table}"))

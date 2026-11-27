@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Scam check settings</title><link rel="stylesheet" href="styles.css"></head>
+<body style="max-width:560px;margin:32px auto;padding:0 16px">
+  <h1>Scam check settings</h1>
+  <form id="form" class="card" style="margin-top:16px">
+    <label for="server">Service address</label>
+    <input id="server" type="url" placeholder="https://scamcheck.example.com" required>
+    <label for="token">Connection code</label>
+    <input id="token" type="password" placeholder="pse_…" autocomplete="off" required>
+    <p class="muted">Create one in the web app under Settings → Browser extension.</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400">
+      <input id="warnings" type="checkbox" style="margin-top:3px">
+      <span><strong>Warn me before I open a verified scam website.</strong><br>
+      <span class="muted">This needs permission to see the sites you visit. Only each site's domain name is checked, nothing is stored, and only sites our analysts have verified trigger a warning.</span></span>
+    </label>
+    <div style="margin-top:16px"><button class="primary" type="submit">Save</button></div>
+    <p id="status" class="muted"></p>
+  </form>
+  <p class="footer">Powered by GraceGate Technologies</p>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

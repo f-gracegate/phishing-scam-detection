@@ -194,6 +194,14 @@ def _recommendations(kind: str, verdict: str, signals: list[Signal], category: s
     return recs
 
 
+def _sentence_case(text: str) -> str:
+    """Lower-case the first letter only, so brand names keep their capitals."""
+    first = text.split(" ", 1)[0]
+    if first.isupper() and len(first) > 1:  # an acronym like "SPF"
+        return text
+    return text[:1].lower() + text[1:]
+
+
 def assess(kind: str, signals: list[Signal]) -> Assessment:
     family = "url" if kind in {"url", "qr"} else kind
     score = combine(signals)
@@ -213,7 +221,7 @@ def assess(kind: str, signals: list[Signal]) -> Assessment:
             "Only minor characteristics were noted.",
         )
     else:
-        top = "; ".join(s.title.rstrip(".").lower() for s in risky[:3])
+        top = "; ".join(_sentence_case(s.title.rstrip(".")) for s in risky[:3])
         verified = any(s.source_kind == "verified_intel" for s in risky)
         lead = (
             "It matches verified threat intelligence"

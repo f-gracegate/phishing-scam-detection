@@ -1,0 +1,19 @@
+/* Poppins and Montserrat only, per the house style (bundled with the extension). */
+@font-face { font-family: "Poppins"; src: url("fonts/Poppins_400Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "Poppins"; src: url("fonts/Poppins_600SemiBold.ttf") format("truetype"); font-weight: 600; }
+@font-face { font-family: "Montserrat"; src: url("fonts/Montserrat_700Bold.ttf") format("truetype"); font-weight: 700; }
+:root { --navy: #111827; --blue: #2563EB; --muted: #475467; --border: #E2E8F0; --bg: #F8FAFC; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Poppins", sans-serif; color: var(--navy); background: var(--bg); font-size: 14px; }
+h1, h2 { font-family: "Montserrat", "Poppins", sans-serif; margin: 0; }
+button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; padding: 10px 14px; font-weight: 600; }
+.primary { background: var(--blue); color: #fff; width: 100%; }
+.primary:disabled { opacity: .5; cursor: default; }
+.secondary { background: #fff; border: 1px solid var(--border); color: var(--navy); }
+.link { background: none; padding: 0; color: var(--blue); font-weight: 600; }
+.muted { color: var(--muted); font-size: 12px; }
+.card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.error { color: #B91C1C; font-size: 13px; }
+input[type=text], input[type=url], input[type=password] { width: 100%; padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 10px; font: inherit; }
+label { display: block; font-weight: 600; margin: 12px 0 6px; }
+.footer { margin-top: 12px; font-size: 11px; color: var(--muted); text-align: center; }
